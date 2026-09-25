@@ -2,6 +2,7 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
+  fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const pino = require('pino');
@@ -17,9 +18,11 @@ const CONFIG = {
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const versionResult = await fetchLatestBaileysVersion();
+  console.log('Using Baileys version: ' + JSON.stringify(versionResult.version) + ' isLatest: ' + versionResult.isLatest);
 
   const sock = makeWASocket({
-    version: [2, 3000, 1023223821],
+    version: versionResult.version,
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
@@ -45,8 +48,10 @@ async function startBot() {
     if (connection === 'close') {
       const boomError = new Boom(lastDisconnect && lastDisconnect.error);
       const statusCode = boomError.output ? boomError.output.statusCode : null;
+      console.log('Connection closed. Status code: ' + statusCode);
+      console.log('Full error: ' + JSON.stringify(lastDisconnect && lastDisconnect.error));
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed. Reconnecting? ' + shouldReconnect);
+      console.log('Reconnecting? ' + shouldReconnect);
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
       console.log('Bot connected successfully and is now monitoring groups.');
