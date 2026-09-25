@@ -1,1 +1,13 @@
-
+{
+  "name": "wa-contact-guard",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.9",
+    "qrcode-terminal": "^0.12.0",
+    "pino": "^9.4.0",
+    "@hapi/boom": "^10.0.1"
+  }
+}
