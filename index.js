@@ -11,8 +11,9 @@ const { Boom } = require('@hapi/boom');
 const CONFIG = {
   ONLY_GROUPS: [],
   SEND_WARNING_MESSAGE: true,
-  WARNING_TEXT: (senderName) =>
-    `Deleted a contact message and removed ${senderName} automatically for violating group rules.`,
+  WARNING_TEXT: function (senderName) {
+    return 'Deleted a contact message and removed ' + senderName + ' automatically for violating group rules.';
+  },
 };
 
 async function startBot() {
@@ -20,7 +21,7 @@ async function startBot() {
   const { version } = await fetchLatestBaileysVersion();
 
   const sock = makeWASocket({
-    version,
+    version: version,
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: 'silent' }),
@@ -32,32 +33,37 @@ async function startBot() {
   if (!sock.authState.creds.registered) {
     const phoneNumber = '201097991349';
     const code = await sock.requestPairingCode(phoneNumber);
-    console.log('Your pairing code is:', code);
+    console.log('Your pairing code is: ' + code);
   }
 
-  sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect, qr } = update;
+  sock.ev.on('connection.update', function (update) {
+    const connection = update.connection;
+    const lastDisconnect = update.lastDisconnect;
+    const qr = update.qr;
     if (qr) {
       console.log('Scan this QR from WhatsApp (Linked devices):');
       qrcode.generate(qr, { small: true });
     }
     if (connection === 'close') {
-      const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      const boomError = new Boom(lastDisconnect && lastDisconnect.error);
+      const statusCode = boomError.output ? boomError.output.statusCode : null;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log('Connection closed. Reconnecting?', shouldReconnect);
+      console.log('Connection closed. Reconnecting? ' + shouldReconnect);
       if (shouldReconnect) startBot();
     } else if (connection === 'open') {
       console.log('Bot connected successfully and is now monitoring groups.');
     }
   });
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+  sock.ev.on('messages.upsert', async function (data) {
+    const messages = data.messages;
+    const type = data.type;
     if (type !== 'notify') return;
-    for (const msg of messages) {
+    for (let i = 0; i < messages.length; i++) {
       try {
-        await handleMessage(sock, msg);
+        await handleMessage(sock, messages[i]);
       } catch (err) {
-        console.error('Error handling message:', err?.message || err);
+        console.error('Error handling message: ' + (err && err.message ? err.message : err));
       }
     }
   });
@@ -72,8 +78,8 @@ function messageHasContact(message) {
 
 async function handleMessage(sock, msg) {
   const jid = msg.key.remoteJid;
-  if (!jid || !jid.endsWith('@g.us')) return;
-  if (CONFIG.ONLY_GROUPS.length > 0 && !CONFIG.ONLY_GROUPS.includes(jid)) return;
+  if (!jid || jid.indexOf('@g.us') === -1) return;
+  if (CONFIG.ONLY_GROUPS.length > 0 && CONFIG.ONLY_GROUPS.indexOf(jid) === -1) return;
   if (msg.key.fromMe) return;
 
   const content = msg.message;
@@ -88,7 +94,7 @@ async function handleMessage(sock, msg) {
 
   await sock.groupParticipantsUpdate(jid, [senderId], 'remove');
 
-  console.log(`Deleted a contact message from ${senderId} in ${jid} and removed them.`);
+  console.log('Deleted a contact message from ' + senderId + ' in ' + jid + ' and removed them.');
 
   if (CONFIG.SEND_WARNING_MESSAGE) {
     const senderName = senderId.split('@')[0];
@@ -96,6 +102,6 @@ async function handleMessage(sock, msg) {
   }
 }
 
-startBot().catch((err) => {
-  console.error('Failed to start bot:', err);
+startBot().catch(function (err) {
+  console.error('Failed to start bot: ' + (err && err.message ? err.message : err));
 });
