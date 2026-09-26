@@ -19,7 +19,7 @@ const CONFIG = {
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const versionResult = await fetchLatestBaileysVersion();
-  console.log('Using Baileys version: ' + JSON.stringify(versionResult.version) + ' isLatest: ' + versionResult.isLatest);
+  console.log('Using Baileys version: ' + JSON.stringify(versionResult.version));
 
   const sock = makeWASocket({
     version: versionResult.version,
@@ -32,9 +32,18 @@ async function startBot() {
   sock.ev.on('creds.update', saveCreds);
 
   if (!sock.authState.creds.registered) {
-    const phoneNumber = '201097991349';
-    const code = await sock.requestPairingCode(phoneNumber);
-    console.log('Your pairing code is: ' + code);
+    setTimeout(async function () {
+      try {
+        const phoneNumber = '201097991349';
+        const code = await sock.requestPairingCode(phoneNumber);
+        console.log('=================================');
+        console.log('Your pairing code is: ' + code);
+        console.log('=================================');
+      } catch (err) {
+        console.log('Pairing code request failed: ' + (err && err.message ? err.message : err));
+        console.log('Full error: ' + JSON.stringify(err));
+      }
+    }, 5000);
   }
 
   sock.ev.on('connection.update', function (update) {
@@ -49,7 +58,6 @@ async function startBot() {
       const boomError = new Boom(lastDisconnect && lastDisconnect.error);
       const statusCode = boomError.output ? boomError.output.statusCode : null;
       console.log('Connection closed. Status code: ' + statusCode);
-      console.log('Full error: ' + JSON.stringify(lastDisconnect && lastDisconnect.error));
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       console.log('Reconnecting? ' + shouldReconnect);
       if (shouldReconnect) startBot();
